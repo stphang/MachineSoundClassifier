@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browser-based machine sound frequency monitor">
+  <title>Machine Sound Frequency Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="kicker">FIELD AUDIO / BROWSER SENSOR</p>
+        <h1>Machine sound<br><em>frequency monitor</em></h1>
+        <p class="lede">Listen to a machine through your microphone. See its frequency profile, track changes, and get a visible warning when sound energy crosses your chosen limit.</p>
+      </div>
+      <div class="status-chip" id="connectionStatus"><span class="status-dot"></span><span id="statusText">Ready to listen</span></div>
+    </header>
+
+    <section class="control-strip" aria-label="Recorder controls">
+      <button class="primary-button" id="startButton" type="button"><span class="button-icon">&#9654;</span> Start listening</button>
+      <button class="secondary-button" id="stopButton" type="button" disabled><span class="button-icon">&#9632;</span> Stop</button>
+      <label class="threshold-control" for="thresholdSlider">
+        <span>Alert sensitivity</span>
+        <strong id="thresholdValue">65%</strong>
+        <input id="thresholdSlider" type="range" min="10" max="95" value="65" step="5">
+      </label>
+    </section>
+
+    <div class="notice" id="notice" role="status" aria-live="polite">Your microphone stays in this browser. No audio is uploaded or stored.</div>
+
+    <section class="dashboard-grid">
+      <article class="panel spectrum-panel">
+        <div class="panel-heading"><div><p class="eyebrow">LIVE SPECTRUM</p><h2>Frequency fingerprint</h2></div><span class="live-badge" id="liveBadge">IDLE</span></div>
+        <div class="chart-wrap"><canvas id="spectrumCanvas" aria-label="Live frequency spectrum"></canvas><div class="chart-empty" id="chartEmpty">Start listening to see the frequency profile</div></div>
+        <div class="axis-labels"><span>0 Hz</span><span>1 kHz</span><span>2 kHz</span><span>4 kHz+</span></div>
+      </article>
+
+      <article class="panel reading-panel">
+        <p class="eyebrow">CURRENT READING</p>
+        <div class="reading-value"><span id="dominantFrequency">--</span><small>Hz</small></div>
+        <p class="reading-label">dominant frequency</p>
+        <div class="metric-list">
+          <div class="metric"><span>Sound level</span><strong id="soundLevel">-- dB</strong></div>
+          <div class="metric"><span>Spectral energy</span><strong id="spectralEnergy">--</strong></div>
+          <div class="metric"><span>Analysis score</span><strong id="analysisScore">--</strong></div>
+        </div>
+        <div class="alert-card neutral" id="alertCard"><span class="alert-icon" id="alertIcon">&#9679;</span><div><strong id="alertTitle">No reading yet</strong><p id="alertMessage">Allow microphone access to begin.</p></div></div>
+      </article>
+    </section>
+
+    <section class="lower-grid">
+      <article class="panel log-panel">
+        <div class="panel-heading"><div><p class="eyebrow">SESSION HISTORY</p><h2>Events</h2></div><button class="text-button" id="clearButton" type="button">Clear</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Time</th><th>Frequency</th><th>Score</th><th>Result</th></tr></thead><tbody id="eventTable"><tr class="empty-row"><td colspan="4">No events recorded in this session.</td></tr></tbody></table></div>
+        <div class="log-actions"><button class="secondary-button small" id="exportButton" type="button" disabled>Download CSV</button><p id="sessionStats">0 readings / 0 alerts</p></div>
+      </article>
+      <article class="panel method-panel">
+        <p class="eyebrow">METHOD NOTE</p>
+        <h2>How it works</h2>
+        <p>The browser's Web Audio API samples your microphone and applies a Fast Fourier Transform (FFT) to each short window. The app finds the strongest frequency, measures energy across the spectrum, and compares a normalized score with your sensitivity setting.</p>
+        <div class="method-rule"></div>
+        <p class="fine-print"><strong>Use as a signal, not a diagnosis.</strong> Room noise, microphone hardware, and changing machine load affect readings. This static app processes audio locally and never sends recordings to a server.</p>
+      </article>
+    </section>
+
+    <footer><span>MACHINE SOUND FREQUENCY MONITOR</span><span>LOCAL PROCESSING / NO RECORDING STORAGE</span></footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

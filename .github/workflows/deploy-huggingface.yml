@@ -1,4 +1,4 @@
-name: Verify and Deploy to Hugging Face Space
+name: Verify and Deploy Static Space
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   verify:
-    name: Verify (install deps, compile, import check)
+    name: Verify static assets
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,25 +18,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system audio libraries
-        # libsndfile is required by soundfile; without it "import soundfile" fails on a clean runner.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsndfile1 ffmpeg
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Check JavaScript syntax
+        run: node --check app.js
 
-      - name: Compile all Python files
-        run: python -m py_compile app.py verify.py
-
-      - name: Run verify script (files, syntax, imports)
+      - name: Run static asset checks
         run: python verify.py
 
   deploy:
-    name: Deploy to Hugging Face Space
+    name: Deploy to Hugging Face Static Space
     needs: verify
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest

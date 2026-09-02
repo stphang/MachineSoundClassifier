@@ -1,30 +1,17 @@
-"""
-Lightweight CI verification script.
+"""Validate the browser-only assets before each Static Space deployment."""
 
-Runs in the GitHub Actions "verify" job (no microphone / GPU available) to
-catch broken imports, syntax errors, and missing files before every deploy.
-Exits non-zero on any failure so the workflow step fails the build.
-"""
-
-import ast
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 
 REQUIRED_FILES = [
-    "app.py",
-    "requirements.txt",
+    "index.html",
+    "styles.css",
+    "app.js",
     "README.md",
     ".gitignore",
 ]
-
-REQUIRED_IMPORTS = [
-    "gradio",
-    "transformers",
-    "numpy",
-]
-
 
 def check_required_files() -> list[str]:
     errors = []
@@ -34,32 +21,31 @@ def check_required_files() -> list[str]:
     return errors
 
 
-def check_python_syntax() -> list[str]:
+def check_asset_references() -> list[str]:
     errors = []
-    for py_file in REPO_ROOT.glob("*.py"):
-        source = py_file.read_text(encoding="utf-8")
-        try:
-            ast.parse(source, filename=str(py_file))
-        except SyntaxError as exc:
-            errors.append(f"syntax error in {py_file.name}: {exc}")
+    html = (REPO_ROOT / "index.html").read_text(encoding="utf-8")
+    for asset in ("styles.css", "app.js"):
+        if asset not in html:
+            errors.append(f"index.html does not reference {asset}")
     return errors
 
 
-def check_imports() -> list[str]:
+def check_static_only() -> list[str]:
     errors = []
-    for module_name in REQUIRED_IMPORTS:
-        try:
-            __import__(module_name)
-        except ImportError as exc:
-            errors.append(f"failed to import '{module_name}': {exc}")
+    forbidden = ("gradio", "transformers", "torch", "import numpy")
+    for name in ("index.html", "styles.css", "app.js"):
+        source = (REPO_ROOT / name).read_text(encoding="utf-8").lower()
+        for token in forbidden:
+            if token in source:
+                errors.append(f"static asset {name} contains server dependency: {token}")
     return errors
 
 
 def main() -> int:
     all_errors = []
     all_errors += check_required_files()
-    all_errors += check_python_syntax()
-    all_errors += check_imports()
+    all_errors += check_asset_references()
+    all_errors += check_static_only()
 
     if all_errors:
         print("CI verify FAILED:")
@@ -67,7 +53,7 @@ def main() -> int:
             print(f"  - {err}")
         return 1
 
-    print("CI verify passed: required files present, syntax OK, imports OK.")
+    print("CI verify passed: static assets present and server dependencies absent.")
     return 0
 
 

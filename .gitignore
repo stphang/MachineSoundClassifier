@@ -31,4 +31,3 @@ Thumbs.db
 .env
 *.env
 *token*
-!requirements.txt
