@@ -170,6 +170,7 @@ async function startListening() {
     state.listening = true;
     elements.start.disabled = true; elements.stop.disabled = false;
     setStatus('Listening now', true); setNotice('Audio is being analyzed locally in your browser.');
+    resizeCanvas(); // container size may not have been final at page load
     analyze();
   } catch (error) {
     setStatus('Microphone unavailable');
@@ -197,5 +198,8 @@ elements.slider.addEventListener('input', (event) => { state.threshold = Number(
 elements.clear.addEventListener('click', () => { state.events = []; renderLog(); elements.alertCard.className = 'alert-card neutral'; elements.alertIcon.textContent = '.'; elements.alertTitle.textContent = 'History cleared'; elements.alertMessage.textContent = 'New readings will appear here.'; });
 elements.export.addEventListener('click', exportCsv);
 window.addEventListener('resize', resizeCanvas);
+if (window.ResizeObserver) {
+  new ResizeObserver(resizeCanvas).observe(elements.canvas.parentElement);
+}
 resizeCanvas();
 renderLog();
