@@ -17,7 +17,7 @@ categories** (speech, engines, sirens, alarms, machinery, animals, music,
 etc.), shows confidence scores, and raises a visible alert when a detection
 crosses a user-adjustable threshold.
 
-**Live Space:** https://huggingface.co/spaces/stphang/MachineSoundClassifier
+**Live Space:** https://huggingface.co/spaces/stPPst/MachineSoundClassifier
 
 ## What it does
 
