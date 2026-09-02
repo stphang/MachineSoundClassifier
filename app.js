@@ -142,13 +142,40 @@ function analyze() {
   const values = new Uint8Array(state.analyser.frequencyBinCount);
   state.analyser.getByteFrequencyData(values);
   const sampleRate = state.audioContext.sampleRate;
-  const firstUsefulBin = Math.max(1, Math.floor(30 * values.length * 2 / sampleRate));
-  let peakIndex = firstUsefulBin; let peakValue = 0; let total = 0;
-  values.forEach((value, index) => {
-    total += value;
-    if (index >= firstUsefulBin && value > peakValue) { peakValue = value; peakIndex = index; }
-  });
-  const frequency = peakIndex * sampleRate / (values.length * 2);
+  const binHz = sampleRate / (values.length * 2);
+  // Below ~60Hz is almost always rumble/hum, not a machine tone worth reporting.
+  const firstUsefulBin = Math.max(1, Math.round(60 / binHz));
+  // Prominence (bin value minus its local neighborhood average) finds a real
+  // tonal peak; picking the single loudest bin instead nearly always just
+  // finds broadband bass/room-noise energy, which dominates most real audio.
+  const neighborSpan = Math.max(2, Math.round(120 / binHz));
+  // A minimum absolute magnitude keeps near-silent bins (noise-floor jitter that
+  // looks "relatively" prominent next to even quieter neighbors) from winning.
+  const minMagnitude = 25;
+  let peakIndex = firstUsefulBin; let peakValue = values[firstUsefulBin] || 0; let bestProminence = -Infinity; let total = 0;
+  let foundCandidate = false;
+  values.forEach((value) => { total += value; });
+  for (let index = firstUsefulBin; index < values.length; index += 1) {
+    if (values[index] < minMagnitude) continue;
+    const from = Math.max(firstUsefulBin, index - neighborSpan);
+    const to = Math.min(values.length - 1, index + neighborSpan);
+    let neighborSum = 0; let neighborCount = 0;
+    for (let n = from; n <= to; n += 1) {
+      if (n === index) continue;
+      neighborSum += values[n];
+      neighborCount += 1;
+    }
+    const baseline = neighborCount ? neighborSum / neighborCount : 0;
+    const prominence = values[index] - baseline;
+    if (prominence > bestProminence) { bestProminence = prominence; peakIndex = index; peakValue = values[index]; foundCandidate = true; }
+  }
+  if (!foundCandidate) {
+    // Nothing cleared the floor (very quiet input): fall back to the loudest bin.
+    values.forEach((value, index) => {
+      if (index >= firstUsefulBin && value > peakValue) { peakValue = value; peakIndex = index; }
+    });
+  }
+  const frequency = peakIndex * binHz;
   const average = total / values.length;
   const score = Math.min(1, average / 120 + peakValue / 510);
   const db = Math.max(-90, 20 * Math.log10(Math.max(0.00001, average / 255)));
