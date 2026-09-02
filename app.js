@@ -1,3 +1,5 @@
+const STORAGE_KEY = 'machineSoundEvents';
+
 const state = {
   audioContext: null,
   analyser: null,
@@ -8,6 +10,8 @@ const state = {
   threshold: 0.65,
   events: [],
   lastSampleAt: 0,
+  sessionStartedAt: null,
+  durationTimer: null,
 };
 
 const elements = {
@@ -15,6 +19,7 @@ const elements = {
   stop: document.querySelector('#stopButton'),
   slider: document.querySelector('#thresholdSlider'),
   threshold: document.querySelector('#thresholdValue'),
+  presets: document.querySelectorAll('.preset-button'),
   notice: document.querySelector('#notice'),
   status: document.querySelector('#connectionStatus'),
   statusText: document.querySelector('#statusText'),
@@ -25,6 +30,8 @@ const elements = {
   level: document.querySelector('#soundLevel'),
   energy: document.querySelector('#spectralEnergy'),
   score: document.querySelector('#analysisScore'),
+  duration: document.querySelector('#sessionDuration'),
+  vuFill: document.querySelector('#vuMeterFill'),
   alertCard: document.querySelector('#alertCard'),
   alertIcon: document.querySelector('#alertIcon'),
   alertTitle: document.querySelector('#alertTitle'),
@@ -32,7 +39,12 @@ const elements = {
   table: document.querySelector('#eventTable'),
   clear: document.querySelector('#clearButton'),
   export: document.querySelector('#exportButton'),
+  exportJson: document.querySelector('#exportJsonButton'),
   stats: document.querySelector('#sessionStats'),
+  statReadings: document.querySelector('#statReadings'),
+  statAlerts: document.querySelector('#statAlerts'),
+  statAvgFreq: document.querySelector('#statAvgFreq'),
+  statPeakFreq: document.querySelector('#statPeakFreq'),
 };
 
 function setNotice(message, isError = false) {
@@ -45,6 +57,32 @@ function setStatus(message, active = false) {
   elements.status.classList.toggle('active', active);
   elements.badge.textContent = active ? 'LISTENING' : 'IDLE';
   elements.badge.classList.toggle('active', active);
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function loadPersistedEvents() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    state.events = parsed.map((item) => ({ ...item, time: new Date(item.time) })).slice(0, 100);
+  } catch (error) {
+    state.events = [];
+  }
+}
+
+function persistEvents() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.events));
+  } catch (error) {
+    // Storage may be unavailable (private browsing, quota); the session still works in memory.
+  }
 }
 
 function resizeCanvas() {
@@ -122,6 +160,9 @@ function analyze() {
   elements.level.textContent = `${db.toFixed(1)} dB`;
   elements.energy.textContent = `${Math.round(average / 2.55)}%`;
   elements.score.textContent = `${Math.round(score * 100)}%`;
+  const meterLevel = Math.min(1, Math.sqrt(average / 255));
+  elements.vuFill.style.width = `${Math.round(meterLevel * 100)}%`;
+  elements.vuFill.classList.toggle('hot', score >= state.threshold);
   if (performance.now() - state.lastSampleAt > 1800) {
     recordEvent(frequency, score);
     state.lastSampleAt = performance.now();
@@ -133,6 +174,7 @@ function recordEvent(frequency, score) {
   const alert = score >= state.threshold;
   state.events.unshift({ time: new Date(), frequency: Math.round(frequency), score, alert });
   state.events = state.events.slice(0, 100);
+  persistEvents();
   renderLog();
   elements.alertCard.className = `alert-card ${alert ? 'alert' : 'ok'}`;
   elements.alertIcon.textContent = alert ? '!' : 'OK';
@@ -152,8 +194,14 @@ function renderLog() {
     });
   }
   const alerts = state.events.filter((event) => event.alert).length;
-  elements.stats.textContent = `${state.events.length} readings / ${alerts} alerts`;
+  const frequencies = state.events.map((event) => event.frequency);
+  elements.statReadings.textContent = state.events.length.toLocaleString();
+  elements.statAlerts.textContent = alerts.toLocaleString();
+  elements.statAvgFreq.textContent = frequencies.length ? Math.round(frequencies.reduce((sum, value) => sum + value, 0) / frequencies.length).toLocaleString() : '--';
+  elements.statPeakFreq.textContent = frequencies.length ? Math.max(...frequencies).toLocaleString() : '--';
+  elements.stats.textContent = state.events.length ? 'Saved automatically in this browser.' : 'No history saved yet.';
   elements.export.disabled = state.events.length === 0;
+  elements.exportJson.disabled = state.events.length === 0;
 }
 
 function exportCsv() {
@@ -162,6 +210,15 @@ function exportCsv() {
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   link.download = `machine-sound-events-${Date.now()}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function exportJson() {
+  const payload = state.events.map((event) => ({ time: event.time.toISOString(), frequencyHz: event.frequency, score: Number(event.score.toFixed(3)), alert: event.alert }));
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  link.download = `machine-sound-events-${Date.now()}.json`;
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -183,6 +240,11 @@ async function startListening() {
     elements.start.disabled = true; elements.stop.disabled = false;
     setStatus('Listening now', true); setNotice('Audio is being analyzed locally in your browser.');
     resizeCanvas(); // container size may not have been final at page load
+    state.sessionStartedAt = Date.now();
+    if (state.durationTimer) clearInterval(state.durationTimer);
+    state.durationTimer = setInterval(() => {
+      elements.duration.textContent = formatDuration(Date.now() - state.sessionStartedAt);
+    }, 1000);
     analyze();
   } catch (error) {
     setStatus('Microphone unavailable');
@@ -196,6 +258,7 @@ async function startListening() {
 
 function stopListening() {
   if (state.frameId) cancelAnimationFrame(state.frameId);
+  if (state.durationTimer) { clearInterval(state.durationTimer); state.durationTimer = null; }
   if (state.source) state.source.disconnect();
   if (state.audioContext) state.audioContext.close();
   if (state.stream) state.stream.getTracks().forEach((track) => track.stop());
@@ -206,12 +269,23 @@ function stopListening() {
 
 elements.start.addEventListener('click', startListening);
 elements.stop.addEventListener('click', stopListening);
-elements.slider.addEventListener('input', (event) => { state.threshold = Number(event.target.value) / 100; elements.threshold.textContent = `${event.target.value}%`; });
-elements.clear.addEventListener('click', () => { state.events = []; renderLog(); elements.alertCard.className = 'alert-card neutral'; elements.alertIcon.textContent = '.'; elements.alertTitle.textContent = 'History cleared'; elements.alertMessage.textContent = 'New readings will appear here.'; });
+elements.slider.addEventListener('input', (event) => { state.threshold = Number(event.target.value) / 100; elements.threshold.textContent = `${event.target.value}%`; elements.presets.forEach((button) => button.classList.toggle('active', button.dataset.threshold === event.target.value)); });
+elements.clear.addEventListener('click', () => { state.events = []; persistEvents(); renderLog(); elements.alertCard.className = 'alert-card neutral'; elements.alertIcon.textContent = '.'; elements.alertTitle.textContent = 'History cleared'; elements.alertMessage.textContent = 'New readings will appear here.'; });
 elements.export.addEventListener('click', exportCsv);
+elements.exportJson.addEventListener('click', exportJson);
+elements.presets.forEach((button) => {
+  button.addEventListener('click', () => {
+    const value = button.dataset.threshold;
+    elements.slider.value = value;
+    state.threshold = Number(value) / 100;
+    elements.threshold.textContent = `${value}%`;
+    elements.presets.forEach((other) => other.classList.toggle('active', other === button));
+  });
+});
 window.addEventListener('resize', resizeCanvas);
 if (window.ResizeObserver) {
   new ResizeObserver(resizeCanvas).observe(elements.canvas.parentElement);
 }
 resizeCanvas();
+loadPersistedEvents();
 renderLog();

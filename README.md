@@ -28,10 +28,14 @@ microphone permission requests from that embedded page.
 - Requests microphone access directly from the browser.
 - Applies the Web Audio API's Fast Fourier Transform (FFT) to live audio.
 - Shows a live spectrum from 0 to 4 kHz+, the dominant frequency, sound level,
-  spectral energy, and an analysis score.
-- Lets the user adjust the alert sensitivity while listening.
+  spectral energy, a live sound-level meter, and an analysis score.
+- Offers quick sensitivity presets (Quiet room / Workshop / Industrial) plus a
+  fine-grained slider.
 - Records timestamped normal and alert readings for the current browser session.
-- Exports the session history as a CSV file.
+- Tracks session duration and enriched statistics (readings, alerts, average
+  and peak frequency).
+- Saves the event history in the browser (`localStorage`) so it survives a
+  page refresh, and exports it as CSV or JSON.
 - Handles denied permissions and missing microphones with a visible message.
 
 ## Data and processing
@@ -39,8 +43,10 @@ microphone permission requests from that embedded page.
 This is a Track B audio application using signal processing rather than a
 downloaded machine-learning model. The browser's Web Audio API performs the
 analysis locally. Microphone samples are not uploaded, sent to a Python
-backend, or stored as recordings. Only the current session's derived readings
-are held in browser memory.
+backend, or stored as recordings. The derived event history (timestamp,
+frequency, score, alert flag — never raw audio) is saved in the browser's
+`localStorage` so it persists across page reloads on the same device, and can
+be cleared at any time with the **Clear** button.
 
 The score is a normalized indicator based on average spectrum energy and the
 strongest frequency bin. It is an alert signal, not a certified machine-fault
@@ -83,10 +89,12 @@ requirement. The GitHub Actions workflow runs on pushes to `main`:
 
 ## Engineering features
 
-- Adjustable alert sensitivity.
-- Timestamped in-session event history.
-- CSV export without uploading data.
-- Session statistics showing readings and alerts.
+- Adjustable alert sensitivity with quick presets and a fine-grained slider.
+- Live sound-level (VU) meter for at-a-glance feedback.
+- Session duration timer and enriched statistics (readings, alerts, average
+  and peak frequency).
+- Timestamped event history persisted in the browser across page reloads.
+- CSV and JSON export without uploading data.
 - Graceful microphone permission and device error states.
 - CI validation before deployment.
 
@@ -95,4 +103,6 @@ requirement. The GitHub Actions workflow runs on pushes to `main`:
 Readings depend on microphone quality, browser audio settings, room noise,
 and machine load. A single frequency peak should not be treated as proof of a
 mechanical fault. The visible spectrum is limited to the lower 4 kHz range for
-readability, and event history is cleared when the page is refreshed.
+readability. Event history is stored per-browser via `localStorage`; clearing
+browser data, using a different browser or device, or private/incognito mode
+will not show previously saved events.

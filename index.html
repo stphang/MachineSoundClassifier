@@ -24,6 +24,11 @@
     <section class="control-strip" aria-label="Recorder controls">
       <button class="primary-button" id="startButton" type="button"><span class="button-icon">&#9654;</span> Start listening</button>
       <button class="secondary-button" id="stopButton" type="button" disabled><span class="button-icon">&#9632;</span> Stop</button>
+      <div class="preset-group" role="group" aria-label="Sensitivity presets">
+        <button class="preset-button" data-threshold="80" type="button">Quiet room</button>
+        <button class="preset-button active" data-threshold="65" type="button">Workshop</button>
+        <button class="preset-button" data-threshold="45" type="button">Industrial</button>
+      </div>
       <label class="threshold-control" for="thresholdSlider">
         <span>Alert sensitivity</span>
         <strong id="thresholdValue">65%</strong>
@@ -45,10 +50,12 @@
         <p class="eyebrow">CURRENT READING</p>
         <div class="reading-value"><span id="dominantFrequency">--</span><small>Hz</small></div>
         <p class="reading-label">dominant frequency</p>
+        <div class="vu-meter" aria-hidden="true"><div class="vu-meter-fill" id="vuMeterFill"></div></div>
         <div class="metric-list">
           <div class="metric"><span>Sound level</span><strong id="soundLevel">-- dB</strong></div>
           <div class="metric"><span>Spectral energy</span><strong id="spectralEnergy">--</strong></div>
           <div class="metric"><span>Analysis score</span><strong id="analysisScore">--</strong></div>
+          <div class="metric"><span>Session duration</span><strong id="sessionDuration">00:00</strong></div>
         </div>
         <div class="alert-card neutral" id="alertCard"><span class="alert-icon" id="alertIcon">&#9679;</span><div><strong id="alertTitle">No reading yet</strong><p id="alertMessage">Allow microphone access to begin.</p></div></div>
       </article>
@@ -57,8 +64,20 @@
     <section class="lower-grid">
       <article class="panel log-panel">
         <div class="panel-heading"><div><p class="eyebrow">SESSION HISTORY</p><h2>Events</h2></div><button class="text-button" id="clearButton" type="button">Clear</button></div>
+        <div class="stats-grid">
+          <div class="stat"><strong id="statReadings">0</strong><span>Readings</span></div>
+          <div class="stat"><strong id="statAlerts">0</strong><span>Alerts</span></div>
+          <div class="stat"><strong id="statAvgFreq">--</strong><span>Avg Hz</span></div>
+          <div class="stat"><strong id="statPeakFreq">--</strong><span>Peak Hz</span></div>
+        </div>
         <div class="table-wrap"><table><thead><tr><th>Time</th><th>Frequency</th><th>Score</th><th>Result</th></tr></thead><tbody id="eventTable"><tr class="empty-row"><td colspan="4">No events recorded in this session.</td></tr></tbody></table></div>
-        <div class="log-actions"><button class="secondary-button small" id="exportButton" type="button" disabled>Download CSV</button><p id="sessionStats">0 readings / 0 alerts</p></div>
+        <div class="log-actions">
+          <div class="export-group">
+            <button class="secondary-button small" id="exportButton" type="button" disabled>Download CSV</button>
+            <button class="secondary-button small" id="exportJsonButton" type="button" disabled>Download JSON</button>
+          </div>
+          <p id="sessionStats">Saved automatically in this browser.</p>
+        </div>
       </article>
       <article class="panel method-panel">
         <p class="eyebrow">METHOD NOTE</p>
