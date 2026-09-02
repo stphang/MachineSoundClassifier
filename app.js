@@ -69,12 +69,13 @@ function drawSpectrum(data, sampleRate) {
     context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
   }
   const visibleBins = Math.min(data.length, Math.floor((4000 / (sampleRate / 2)) * data.length));
+  const peakMagnitude = Math.max(1, ...data.slice(0, visibleBins));
   const gradient = context.createLinearGradient(0, 0, 0, height);
   gradient.addColorStop(0, '#147d55'); gradient.addColorStop(1, '#b8e8c7');
   context.beginPath();
   for (let index = 0; index < visibleBins; index += 1) {
     const x = (index / Math.max(1, visibleBins - 1)) * width;
-    const y = height - Math.max(2, data[index] * height * 2.5);
+    const y = height - Math.max(2, (data[index] / peakMagnitude) * height * .85);
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
   }
   context.lineTo(width, height); context.lineTo(0, height); context.closePath();
@@ -82,7 +83,7 @@ function drawSpectrum(data, sampleRate) {
   context.beginPath();
   for (let index = 0; index < visibleBins; index += 1) {
     const x = (index / Math.max(1, visibleBins - 1)) * width;
-    const y = height - Math.max(2, data[index] * height * 2.5);
+    const y = height - Math.max(2, (data[index] / peakMagnitude) * height * .85);
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
   }
   context.strokeStyle = '#147d55'; context.lineWidth = 2; context.stroke();
