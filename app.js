@@ -1,4 +1,8 @@
 const STORAGE_KEY = 'machineSoundEvents';
+// Cap analysis/display to a mechanically-meaningful, human-audible band; bins
+// above this are dominated by mic self-noise/ultrasonic interference, not
+// real machine sound, and would report a frequency the chart never plots.
+const MAX_ANALYSIS_HZ = 4000;
 
 const state = {
   audioContext: null,
@@ -12,6 +16,10 @@ const state = {
   lastSampleAt: 0,
   sessionStartedAt: null,
   durationTimer: null,
+  totalReadings: 0,
+  totalAlerts: 0,
+  frequencySum: 0,
+  peakFrequency: 0,
 };
 
 const elements = {
@@ -71,7 +79,20 @@ function loadPersistedEvents() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    state.events = parsed.map((item) => ({ ...item, time: new Date(item.time) })).slice(0, 100);
+    const events = Array.isArray(parsed) ? parsed : parsed.events || [];
+    state.events = events.map((item) => ({ ...item, time: new Date(item.time) })).slice(0, 100);
+    if (!Array.isArray(parsed)) {
+      state.totalReadings = parsed.totalReadings || 0;
+      state.totalAlerts = parsed.totalAlerts || 0;
+      state.frequencySum = parsed.frequencySum || 0;
+      state.peakFrequency = parsed.peakFrequency || 0;
+    } else {
+      // Legacy storage format (plain array): approximate cumulative stats from what's kept.
+      state.totalReadings = state.events.length;
+      state.totalAlerts = state.events.filter((event) => event.alert).length;
+      state.frequencySum = state.events.reduce((sum, event) => sum + event.frequency, 0);
+      state.peakFrequency = state.events.reduce((max, event) => Math.max(max, event.frequency), 0);
+    }
   } catch (error) {
     state.events = [];
   }
@@ -79,7 +100,13 @@ function loadPersistedEvents() {
 
 function persistEvents() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.events));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      events: state.events,
+      totalReadings: state.totalReadings,
+      totalAlerts: state.totalAlerts,
+      frequencySum: state.frequencySum,
+      peakFrequency: state.peakFrequency,
+    }));
   } catch (error) {
     // Storage may be unavailable (private browsing, quota); the session still works in memory.
   }
@@ -106,7 +133,7 @@ function drawSpectrum(data, sampleRate) {
     const y = (height / 5) * line;
     context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
   }
-  const visibleBins = Math.min(data.length, Math.floor((4000 / (sampleRate / 2)) * data.length));
+  const visibleBins = Math.min(data.length, Math.floor((MAX_ANALYSIS_HZ / (sampleRate / 2)) * data.length));
   // Bucket bins per pixel column: hundreds of bins into ~380px otherwise collapses
   // the loudest bin into a sub-pixel, invisible spike.
   const columns = Math.max(1, Math.min(visibleBins, Math.round(width)));
@@ -145,6 +172,9 @@ function analyze() {
   const binHz = sampleRate / (values.length * 2);
   // Below ~60Hz is almost always rumble/hum, not a machine tone worth reporting.
   const firstUsefulBin = Math.max(1, Math.round(60 / binHz));
+  // Above the chart's plotted range is mic self-noise/ultrasonic interference,
+  // not audible machine sound, and would report a frequency never shown on screen.
+  const lastUsefulBin = Math.min(values.length - 1, Math.round(MAX_ANALYSIS_HZ / binHz));
   // Prominence (bin value minus its local neighborhood average) finds a real
   // tonal peak; picking the single loudest bin instead nearly always just
   // finds broadband bass/room-noise energy, which dominates most real audio.
@@ -155,10 +185,10 @@ function analyze() {
   let peakIndex = firstUsefulBin; let peakValue = values[firstUsefulBin] || 0; let bestProminence = -Infinity; let total = 0;
   let foundCandidate = false;
   values.forEach((value) => { total += value; });
-  for (let index = firstUsefulBin; index < values.length; index += 1) {
+  for (let index = firstUsefulBin; index <= lastUsefulBin; index += 1) {
     if (values[index] < minMagnitude) continue;
     const from = Math.max(firstUsefulBin, index - neighborSpan);
-    const to = Math.min(values.length - 1, index + neighborSpan);
+    const to = Math.min(lastUsefulBin, index + neighborSpan);
     let neighborSum = 0; let neighborCount = 0;
     for (let n = from; n <= to; n += 1) {
       if (n === index) continue;
@@ -171,9 +201,9 @@ function analyze() {
   }
   if (!foundCandidate) {
     // Nothing cleared the floor (very quiet input): fall back to the loudest bin.
-    values.forEach((value, index) => {
-      if (index >= firstUsefulBin && value > peakValue) { peakValue = value; peakIndex = index; }
-    });
+    for (let index = firstUsefulBin; index <= lastUsefulBin; index += 1) {
+      if (values[index] > peakValue) { peakValue = values[index]; peakIndex = index; }
+    }
   }
   const frequency = peakIndex * binHz;
   const average = total / values.length;
@@ -199,8 +229,13 @@ function analyze() {
 
 function recordEvent(frequency, score) {
   const alert = score >= state.threshold;
-  state.events.unshift({ time: new Date(), frequency: Math.round(frequency), score, alert });
-  state.events = state.events.slice(0, 100);
+  const roundedFrequency = Math.round(frequency);
+  state.events.unshift({ time: new Date(), frequency: roundedFrequency, score, alert });
+  state.events = state.events.slice(0, 100); // bounds memory/storage; cumulative stats below are unaffected
+  state.totalReadings += 1;
+  if (alert) state.totalAlerts += 1;
+  state.frequencySum += roundedFrequency;
+  state.peakFrequency = Math.max(state.peakFrequency, roundedFrequency);
   persistEvents();
   renderLog();
   elements.alertCard.className = `alert-card ${alert ? 'alert' : 'ok'}`;
@@ -220,13 +255,13 @@ function renderLog() {
       elements.table.appendChild(row);
     });
   }
-  const alerts = state.events.filter((event) => event.alert).length;
-  const frequencies = state.events.map((event) => event.frequency);
-  elements.statReadings.textContent = state.events.length.toLocaleString();
-  elements.statAlerts.textContent = alerts.toLocaleString();
-  elements.statAvgFreq.textContent = frequencies.length ? Math.round(frequencies.reduce((sum, value) => sum + value, 0) / frequencies.length).toLocaleString() : '--';
-  elements.statPeakFreq.textContent = frequencies.length ? Math.max(...frequencies).toLocaleString() : '--';
-  elements.stats.textContent = state.events.length ? 'Saved automatically in this browser.' : 'No history saved yet.';
+  // Cumulative counters (not the 100-row-capped events array) so the stats
+  // keep advancing instead of freezing once the log's display cap is reached.
+  elements.statReadings.textContent = state.totalReadings.toLocaleString();
+  elements.statAlerts.textContent = state.totalAlerts.toLocaleString();
+  elements.statAvgFreq.textContent = state.totalReadings ? Math.round(state.frequencySum / state.totalReadings).toLocaleString() : '--';
+  elements.statPeakFreq.textContent = state.totalReadings ? state.peakFrequency.toLocaleString() : '--';
+  elements.stats.textContent = state.totalReadings ? `Saved automatically in this browser \u00b7 log keeps the latest ${state.events.length} of ${state.totalReadings} readings.` : 'No history saved yet.';
   elements.export.disabled = state.events.length === 0;
   elements.exportJson.disabled = state.events.length === 0;
 }
@@ -297,7 +332,11 @@ function stopListening() {
 elements.start.addEventListener('click', startListening);
 elements.stop.addEventListener('click', stopListening);
 elements.slider.addEventListener('input', (event) => { state.threshold = Number(event.target.value) / 100; elements.threshold.textContent = `${event.target.value}%`; elements.presets.forEach((button) => button.classList.toggle('active', button.dataset.threshold === event.target.value)); });
-elements.clear.addEventListener('click', () => { state.events = []; persistEvents(); renderLog(); elements.alertCard.className = 'alert-card neutral'; elements.alertIcon.textContent = '.'; elements.alertTitle.textContent = 'History cleared'; elements.alertMessage.textContent = 'New readings will appear here.'; });
+elements.clear.addEventListener('click', () => {
+  state.events = []; state.totalReadings = 0; state.totalAlerts = 0; state.frequencySum = 0; state.peakFrequency = 0;
+  persistEvents(); renderLog();
+  elements.alertCard.className = 'alert-card neutral'; elements.alertIcon.textContent = '.'; elements.alertTitle.textContent = 'History cleared'; elements.alertMessage.textContent = 'New readings will appear here.';
+});
 elements.export.addEventListener('click', exportCsv);
 elements.exportJson.addEventListener('click', exportJson);
 elements.presets.forEach((button) => {
