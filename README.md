@@ -17,6 +17,12 @@ alert when the score crosses the selected sensitivity setting.
 
 **Live Space:** https://huggingface.co/spaces/stPPst/MachineSoundClassifier
 
+**Direct app URL:** https://stppst-machinesoundclassifier.static.hf.space/
+
+Use the direct app URL for microphone access. Hugging Face's Space overview
+page may embed Static Spaces in a cross-origin iframe, and browsers can block
+microphone permission requests from that embedded page.
+
 ## What it does
 
 - Requests microphone access directly from the browser.

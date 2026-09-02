@@ -156,7 +156,9 @@ function exportCsv() {
 async function startListening() {
   try {
     setNotice('Requesting microphone permission...');
-    state.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
+    const permissionRequest = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('MICROPHONE_REQUEST_TIMEOUT')), 8000));
+    state.stream = await Promise.race([permissionRequest, timeout]);
     state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
     await state.audioContext.resume();
     state.analyser = state.audioContext.createAnalyser();
@@ -170,7 +172,11 @@ async function startListening() {
     analyze();
   } catch (error) {
     setStatus('Microphone unavailable');
-    setNotice(error.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow access in your browser settings, then try again.' : 'No microphone was available. Connect a microphone and try again.', true);
+    if (error.message === 'MICROPHONE_REQUEST_TIMEOUT') {
+      setNotice('Microphone access did not respond. Open the direct app link below; embedded Space pages may block microphone access.', true);
+    } else {
+      setNotice(error.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow access in your browser settings, then try again.' : 'No microphone was available. Connect a microphone and try again.', true);
+    }
   }
 }
 
