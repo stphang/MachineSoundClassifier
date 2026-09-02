@@ -69,23 +69,33 @@ function drawSpectrum(data, sampleRate) {
     context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
   }
   const visibleBins = Math.min(data.length, Math.floor((4000 / (sampleRate / 2)) * data.length));
-  const peakMagnitude = Math.max(1, ...data.slice(0, visibleBins));
+  // Bucket bins per pixel column: hundreds of bins into ~380px otherwise collapses
+  // the loudest bin into a sub-pixel, invisible spike.
+  const columns = Math.max(1, Math.min(visibleBins, Math.round(width)));
+  const bucketed = new Array(columns).fill(0);
+  for (let index = 0; index < visibleBins; index += 1) {
+    const column = Math.min(columns - 1, Math.floor((index / visibleBins) * columns));
+    bucketed[column] = Math.max(bucketed[column], data[index]);
+  }
+  // Perceptual (sqrt) scaling keeps quiet/single-tone audio visibly structured
+  // instead of flattening everything but the loudest bin toward zero.
+  const heightFor = (value) => height - Math.max(2, Math.sqrt(value) * height * .92);
   const gradient = context.createLinearGradient(0, 0, 0, height);
   gradient.addColorStop(0, '#147d55'); gradient.addColorStop(1, '#b8e8c7');
   context.beginPath();
-  for (let index = 0; index < visibleBins; index += 1) {
-    const x = (index / Math.max(1, visibleBins - 1)) * width;
-    const y = height - Math.max(2, (data[index] / peakMagnitude) * height * .85);
+  bucketed.forEach((value, index) => {
+    const x = (index / Math.max(1, columns - 1)) * width;
+    const y = heightFor(value);
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-  }
+  });
   context.lineTo(width, height); context.lineTo(0, height); context.closePath();
   context.fillStyle = gradient; context.globalAlpha = .78; context.fill(); context.globalAlpha = 1;
   context.beginPath();
-  for (let index = 0; index < visibleBins; index += 1) {
-    const x = (index / Math.max(1, visibleBins - 1)) * width;
-    const y = height - Math.max(2, (data[index] / peakMagnitude) * height * .85);
+  bucketed.forEach((value, index) => {
+    const x = (index / Math.max(1, columns - 1)) * width;
+    const y = heightFor(value);
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-  }
+  });
   context.strokeStyle = '#147d55'; context.lineWidth = 2; context.stroke();
 }
 
@@ -104,7 +114,9 @@ function analyze() {
   const average = total / values.length;
   const score = Math.min(1, average / 120 + peakValue / 510);
   const db = Math.max(-90, 20 * Math.log10(Math.max(0.00001, average / 255)));
-  drawSpectrum(values.map((value) => value / 255), sampleRate);
+  // Array.from (not Uint8Array.map, which truncates fractions back to 0-255 ints)
+  // keeps the normalized 0..1 magnitudes needed for visible chart scaling.
+  drawSpectrum(Array.from(values, (value) => value / 255), sampleRate);
   elements.empty.hidden = true;
   elements.frequency.textContent = Math.round(frequency).toLocaleString();
   elements.level.textContent = `${db.toFixed(1)} dB`;
