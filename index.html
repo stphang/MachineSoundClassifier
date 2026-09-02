@@ -43,12 +43,12 @@
       <article class="panel spectrum-panel">
         <div class="panel-heading"><div><p class="eyebrow">LIVE SPECTRUM</p><h2>Frequency fingerprint</h2></div><span class="live-badge" id="liveBadge">IDLE</span></div>
         <div class="chart-wrap"><canvas id="spectrumCanvas" aria-label="Live frequency spectrum"></canvas><div class="chart-empty" id="chartEmpty">Start listening to see the frequency profile</div></div>
-        <div class="axis-labels"><span>0 Hz</span><span>1 kHz</span><span>2 kHz</span><span>4 kHz+</span></div>
+        <div class="axis-labels"><span>0 kHz</span><span>1 kHz</span><span>2 kHz</span><span>4 kHz+</span></div>
       </article>
 
       <article class="panel reading-panel">
         <p class="eyebrow">CURRENT READING</p>
-        <div class="reading-value"><span id="dominantFrequency">--</span><small>Hz</small></div>
+        <div class="reading-value"><span id="dominantFrequency">--</span><small>kHz</small></div>
         <p class="reading-label">dominant frequency</p>
         <div class="vu-meter" aria-hidden="true"><div class="vu-meter-fill" id="vuMeterFill"></div></div>
         <div class="metric-list">
@@ -67,8 +67,8 @@
         <div class="stats-grid">
           <div class="stat"><strong id="statReadings">0</strong><span>Readings</span></div>
           <div class="stat"><strong id="statAlerts">0</strong><span>Alerts</span></div>
-          <div class="stat"><strong id="statAvgFreq">--</strong><span>Avg Hz</span></div>
-          <div class="stat"><strong id="statPeakFreq">--</strong><span>Peak Hz</span></div>
+          <div class="stat"><strong id="statAvgFreq">--</strong><span>Avg kHz</span></div>
+          <div class="stat"><strong id="statPeakFreq">--</strong><span>Peak kHz</span></div>
         </div>
         <div class="table-wrap"><table><thead><tr><th>Time</th><th>Frequency</th><th>Score</th><th>Result</th></tr></thead><tbody id="eventTable"><tr class="empty-row"><td colspan="4">No events recorded in this session.</td></tr></tbody></table></div>
         <div class="log-actions">

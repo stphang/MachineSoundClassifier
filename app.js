@@ -60,6 +60,10 @@ function setNotice(message, isError = false) {
   elements.notice.classList.toggle('error', isError);
 }
 
+function formatKHz(hz) {
+  return (hz / 1000).toFixed(2);
+}
+
 function setStatus(message, active = false) {
   elements.statusText.textContent = message;
   elements.status.classList.toggle('active', active);
@@ -213,7 +217,7 @@ function analyze() {
   // keeps the normalized 0..1 magnitudes needed for visible chart scaling.
   drawSpectrum(Array.from(values, (value) => value / 255), sampleRate);
   elements.empty.hidden = true;
-  elements.frequency.textContent = Math.round(frequency).toLocaleString();
+  elements.frequency.textContent = formatKHz(frequency);
   elements.level.textContent = `${db.toFixed(1)} dB`;
   elements.energy.textContent = `${Math.round(average / 2.55)}%`;
   elements.score.textContent = `${Math.round(score * 100)}%`;
@@ -241,7 +245,7 @@ function recordEvent(frequency, score) {
   elements.alertCard.className = `alert-card ${alert ? 'alert' : 'ok'}`;
   elements.alertIcon.textContent = alert ? '!' : 'OK';
   elements.alertTitle.textContent = alert ? 'Attention: elevated sound energy' : 'Within selected range';
-  elements.alertMessage.textContent = alert ? `The ${Math.round(score * 100)}% score crossed your ${Math.round(state.threshold * 100)}% sensitivity setting.` : `The strongest signal is ${Math.round(frequency)} Hz at a ${Math.round(score * 100)}% score.`;
+  elements.alertMessage.textContent = alert ? `The ${Math.round(score * 100)}% score crossed your ${Math.round(state.threshold * 100)}% sensitivity setting.` : `The strongest signal is ${formatKHz(frequency)} kHz at a ${Math.round(score * 100)}% score.`;
 }
 
 function renderLog() {
@@ -251,7 +255,7 @@ function renderLog() {
   } else {
     state.events.forEach((event) => {
       const row = document.createElement('tr');
-      row.innerHTML = `<td>${event.time.toLocaleTimeString()}</td><td>${event.frequency.toLocaleString()} Hz</td><td>${Math.round(event.score * 100)}%</td><td>${event.alert ? 'ALERT' : 'NORMAL'}</td>`;
+      row.innerHTML = `<td>${event.time.toLocaleTimeString()}</td><td>${formatKHz(event.frequency)} kHz</td><td>${Math.round(event.score * 100)}%</td><td>${event.alert ? 'ALERT' : 'NORMAL'}</td>`;
       elements.table.appendChild(row);
     });
   }
@@ -259,8 +263,8 @@ function renderLog() {
   // keep advancing instead of freezing once the log's display cap is reached.
   elements.statReadings.textContent = state.totalReadings.toLocaleString();
   elements.statAlerts.textContent = state.totalAlerts.toLocaleString();
-  elements.statAvgFreq.textContent = state.totalReadings ? Math.round(state.frequencySum / state.totalReadings).toLocaleString() : '--';
-  elements.statPeakFreq.textContent = state.totalReadings ? state.peakFrequency.toLocaleString() : '--';
+  elements.statAvgFreq.textContent = state.totalReadings ? formatKHz(state.frequencySum / state.totalReadings) : '--';
+  elements.statPeakFreq.textContent = state.totalReadings ? formatKHz(state.peakFrequency) : '--';
   elements.stats.textContent = state.totalReadings ? `Saved automatically in this browser \u00b7 log keeps the latest ${state.events.length} of ${state.totalReadings} readings.` : 'No history saved yet.';
   elements.export.disabled = state.events.length === 0;
   elements.exportJson.disabled = state.events.length === 0;
